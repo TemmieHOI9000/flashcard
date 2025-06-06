@@ -19,48 +19,82 @@ export default function Dashboard() {
   const [decks, setDecks] = useState<Deck[]>([])
   const [loadingDecks, setLoadingDecks] = useState(true)
 
+  // Debug logs to help identify the issue
   useEffect(() => {
-    if (!loading && !user) {
-      router.push('/auth')
+    console.log('Dashboard: user =', user)
+    console.log('Dashboard: loading =', loading)
+  }, [user, loading])
+
+  useEffect(() => {
+    if (!loading) {
+      if (!user) {
+        console.log('No user found, redirecting to /auth')
+        router.push('/auth')
+      } else {
+        console.log('User found:', user.email)
+      }
     }
   }, [user, loading, router])
 
-const fetchDecks = useCallback(async () => {
-  try {
-    const { data, error } = await supabase
-      .from('decks')
-      .select(`
-        *,
-        cards(count)
-      `)
-      .eq('user_id', user?.id)
-      .order('created_at', { ascending: false })
+  const fetchDecks = useCallback(async () => {
+    if (!user?.id) {
+      console.log('No user ID available for fetching decks')
+      setLoadingDecks(false)
+      return
+    }
 
-    if (error) throw error
-    
-    const decksWithCount = data.map(deck => ({
-      ...deck,
-      cards_count: deck.cards?.[0]?.count || 0
-    }))
-    
-    setDecks(decksWithCount)
-  } catch (error) {
-    console.error('Error fetching decks:', error)
-  } finally {
-    setLoadingDecks(false)
-  }
-}, [user])
+    try {
+      console.log('Fetching decks for user:', user.id)
+      
+      // First, let's try a simpler query to test the connection
+      const { data, error } = await supabase
+        .from('decks')
+        .select('*')
+        .eq('user_id', user.id)
+        .order('created_at', { ascending: false })
 
-useEffect(() => {
-  fetchDecks()
-}, [fetchDecks])
+      if (error) {
+        console.error('Error fetching decks:', error)
+        throw error
+      }
+      
+      console.log('Fetched decks:', data)
+      
+      // For now, let's not worry about card counts and just get basic deck info
+      setDecks(data || [])
+    } catch (error) {
+      console.error('Error fetching decks:', error)
+      // Don't throw here, just log and continue
+    } finally {
+      setLoadingDecks(false)
+    }
+  }, [user?.id])
 
+  useEffect(() => {
+    if (user?.id && !loading) {
+      fetchDecks()
+    }
+  }, [fetchDecks, user?.id, loading])
+
+  // Show loading while auth is being determined
   if (loading) {
-    return <div className="min-h-screen flex items-center justify-center">Loading...</div>
+    return (
+      <div className="min-h-screen flex items-center justify-center">
+        <div className="text-center">
+          <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600 mx-auto mb-4"></div>
+          <p>Loading...</p>
+        </div>
+      </div>
+    )
   }
 
+  // Don't render anything if no user (will redirect)
   if (!user) {
-    return null
+    return (
+      <div className="min-h-screen flex items-center justify-center">
+        <p>Redirecting to login...</p>
+      </div>
+    )
   }
 
   return (
@@ -92,7 +126,10 @@ useEffect(() => {
           </div>
 
           {loadingDecks ? (
-            <div className="text-center py-8">Loading decks...</div>
+            <div className="text-center py-8">
+              <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-blue-600 mx-auto mb-2"></div>
+              <p>Loading decks...</p>
+            </div>
           ) : decks.length === 0 ? (
             <div className="text-center py-8">
               <p className="text-gray-500 mb-4">You don&apos;t have any decks yet.</p>
@@ -107,7 +144,7 @@ useEffect(() => {
                   <h3 className="text-lg font-semibold text-gray-900 mb-2">{deck.title}</h3>
                   <p className="text-gray-600 mb-4">{deck.description || 'No description'}</p>
                   <div className="flex justify-between items-center text-sm text-gray-500">
-                    <span>{deck.cards_count} cards</span>
+                    <span>{deck.cards_count || 0} cards</span>
                     <span>{new Date(deck.created_at).toLocaleDateString()}</span>
                   </div>
                   <div className="mt-4 flex space-x-2">
