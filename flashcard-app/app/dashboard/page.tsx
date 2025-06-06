@@ -1,8 +1,8 @@
 'use client'
 
+import { useEffect, useState, useCallback } from 'react'
 import { useAuth } from '@/components/auth/AuthProvider'
 import { useRouter } from 'next/navigation'
-import { useEffect, useState } from 'react'
 import { supabase } from '@/lib/supabase'
 
 interface Deck {
@@ -25,7 +25,7 @@ export default function Dashboard() {
     }
   }, [user, loading, router])
 
-const fetchDecks = async () => {
+const fetchDecks = useCallback(async () => {
   try {
     const { data, error } = await supabase
       .from('decks')
@@ -49,7 +49,7 @@ const fetchDecks = async () => {
   } finally {
     setLoadingDecks(false)
   }
-}
+}, [user])
 
 useEffect(() => {
   fetchDecks()
